@@ -130,27 +130,33 @@ export default function LoginPage() {
           .from("users")
           .select("user_type, first_name, last_name")
           .eq("id", authData.user.id)
-          .single()
 
         if (userError) {
           console.error("User lookup error:", userError)
-
-          // If user doesn't exist in our users table
-          if (userError.code === "PGRST116") {
-            setError("Account not found in our system. Please complete your registration first.")
-            await supabase.auth.signOut()
-            return
-          } else {
-            setError("Error accessing user data. Please try again.")
-            return
-          }
+          setError("Error accessing user data. Please try again.")
+          return
         }
 
-        if (userData) {
-          setUserType(userData.user_type)
+        // Handle multiple or no rows
+        if (!userData || userData.length === 0) {
+          setError("Account not found in our system. Please complete your registration first.")
+          await supabase.auth.signOut()
+          return
+        }
+
+        if (userData.length > 1) {
+          console.error("Multiple user records found for:", authData.user.id)
+          setError("Multiple accounts found. Please contact support.")
+          await supabase.auth.signOut()
+          return
+        }
+
+        const user = userData[0]
+        if (user) {
+          setUserType(user.user_type)
 
           // Show location prompt for clients
-          if (userData.user_type === "client") {
+          if (user.user_type === "client") {
             setShowLocationPrompt(true)
           } else {
             router.push("/provider/dashboard")

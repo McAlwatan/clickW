@@ -75,7 +75,20 @@ export default function ProviderSetupPage() {
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
-  }, [])
+
+    // Check if user is authenticated
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/login?message=Please sign in to complete your profile setup.")
+        return
+      }
+    }
+
+    checkAuth()
+  }, [router])
 
   const handleServiceToggle = (service: string) => {
     setFormData((prev) => ({
@@ -112,10 +125,22 @@ export default function ProviderSetupPage() {
     setLoading(true)
 
     try {
+      // Get current user with better error handling
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser()
-      if (!user) throw new Error("No user found")
+
+      if (userError) {
+        console.error("Auth error:", userError)
+        throw new Error("Authentication error. Please sign in again.")
+      }
+
+      if (!user) {
+        throw new Error("No authenticated user found. Please sign in.")
+      }
+
+      console.log("User found:", user.id)
 
       // Get coordinates for the location (you can use a geocoding service)
       let coordinates = { latitude: 0, longitude: 0 }
@@ -158,12 +183,19 @@ export default function ProviderSetupPage() {
         total_reviews: 0,
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("Database error:", error)
+        throw error
+      }
 
-      router.push("/login?message=Profile setup complete! Please sign in to access your dashboard.")
-    } catch (error) {
+      router.push("/provider/dashboard?message=Profile setup complete!")
+    } catch (error: any) {
       console.error("Setup error:", error)
-      alert("Profile setup failed. Please try again.")
+      if (error.message.includes("Authentication") || error.message.includes("sign in")) {
+        router.push("/login?message=Please sign in to complete your profile setup.")
+      } else {
+        alert(`Profile setup failed: ${error.message}. Please try again.`)
+      }
     } finally {
       setLoading(false)
     }

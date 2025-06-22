@@ -317,7 +317,7 @@ export default function HomePage() {
 
           <div className="border-t border-gray-800 pt-8 text-center">
             <p className="text-gray-400">
-              &copy; 2025 ClickWork. All rights reserved. Built with ❤️ for the freelance community.
+              &copy; 2025 ClickWork. All rights reserved. Built with ❤️ from Kandambili codes
             </p>
           </div>
         </div>

@@ -1,9 +1,46 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "your-supabase-url"
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "your-supabase-anon-key"
+// Get environment variables with fallbacks for development
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://your-project.supabase.co"
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "your-anon-key"
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create Supabase client with error handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  global: {
+    headers: {
+      "X-Client-Info": "clickwork-app",
+    },
+  },
+})
+
+// Helper function to safely get user
+export const getCurrentUser = async () => {
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+    if (error) {
+      console.warn("Auth error:", error.message)
+      return null
+    }
+    return user
+  } catch (error) {
+    console.warn("Failed to get user:", error)
+    return null
+  }
+}
+
+// Helper function to check if user is authenticated
+export const isAuthenticated = async () => {
+  const user = await getCurrentUser()
+  return !!user
+}
 
 // Types for our database
 export interface User {
@@ -57,7 +94,7 @@ export interface Request {
   description: string
   budget: number
   deadline: string
-  status: "pending" | "accepted" | "rejected" | "in_progress" | "completed" | "client_completed"
+  status: "pending" | "accepted" | "rejected" | "in_progress" | "completed"
   created_at: string
   updated_at: string
 }

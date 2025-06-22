@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Sidebar } from "@/components/sidebar"
 import { Search, MessageSquare, SendIcon } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -18,16 +19,47 @@ export default function ClientMessages() {
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
+  const channelRef = useRef<any>(null)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
     checkAuth()
     fetchConversations()
+    fetchOnlineUsers()
 
     // Check if we need to start a conversation with a specific provider
     const providerId = searchParams.get("provider")
     if (providerId) {
       startConversationWithProvider(providerId)
+    }
+
+    // Create a unique channel name to avoid conflicts
+    const channelName = `client-messages-${Date.now()}-${Math.random()}`
+
+    // Clean up any existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+    }
+
+    // Create new channel
+    channelRef.current = supabase
+      .channel(channelName)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+        fetchConversations()
+        if (selectedConversation) {
+          fetchMessages(selectedConversation.id)
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, () => {
+        fetchOnlineUsers()
+      })
+      .subscribe()
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
     }
   }, [searchParams])
 
@@ -40,6 +72,17 @@ export default function ClientMessages() {
       return
     }
     setCurrentUser(user)
+  }
+
+  const fetchOnlineUsers = async () => {
+    try {
+      const { data } = await supabase.from("users").select("id").eq("is_online", true)
+      if (data) {
+        setOnlineUsers(new Set(data.map((user) => user.id)))
+      }
+    } catch (error) {
+      console.error("Error fetching online users:", error)
+    }
   }
 
   const startConversationWithProvider = async (providerId: string) => {
@@ -76,7 +119,7 @@ export default function ClientMessages() {
       } = await supabase.auth.getUser()
       if (!user) return
 
-      // Get all unique conversations
+      // Get all messages for this user
       const { data: messageData } = await supabase
         .from("messages")
         .select(`
@@ -88,8 +131,9 @@ export default function ClientMessages() {
         .order("created_at", { ascending: false })
 
       if (messageData) {
-        // Group by conversation partner
+        // Group messages by conversation partner
         const conversationMap = new Map()
+
         messageData.forEach((message) => {
           const partnerId = message.sender_id === user.id ? message.receiver_id : message.sender_id
           const partner = message.sender_id === user.id ? message.receiver : message.sender
@@ -97,17 +141,38 @@ export default function ClientMessages() {
           if (!conversationMap.has(partnerId)) {
             conversationMap.set(partnerId, {
               id: partnerId,
-              first_name: partner.first_name,
-              last_name: partner.last_name,
-              email: partner.email,
+              first_name: partner?.first_name || "Unknown",
+              last_name: partner?.last_name || "User",
+              email: partner?.email || "",
               lastMessage: message.content,
               lastMessageTime: message.created_at,
-              unread: message.receiver_id === user.id && !message.read,
+              unreadCount: 0,
+              messages: [],
             })
+          }
+
+          // Add message to conversation
+          const conversation = conversationMap.get(partnerId)
+          conversation.messages.push(message)
+
+          // Count unread messages
+          if (message.receiver_id === user.id && !message.read) {
+            conversation.unreadCount++
+          }
+
+          // Update last message if this is more recent
+          if (new Date(message.created_at) > new Date(conversation.lastMessageTime)) {
+            conversation.lastMessage = message.content
+            conversation.lastMessageTime = message.created_at
           }
         })
 
-        setConversations(Array.from(conversationMap.values()))
+        // Convert to array and sort by last message time
+        const conversationsArray = Array.from(conversationMap.values()).sort(
+          (a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime(),
+        )
+
+        setConversations(conversationsArray)
       }
     } catch (error) {
       console.error("Error fetching conversations:", error)
@@ -138,7 +203,15 @@ export default function ClientMessages() {
       setMessages(data || [])
 
       // Mark messages as read
-      await supabase.from("messages").update({ read: true }).eq("sender_id", partnerId).eq("receiver_id", user.id)
+      await supabase
+        .from("messages")
+        .update({ read: true })
+        .eq("sender_id", partnerId)
+        .eq("receiver_id", user.id)
+        .eq("read", false)
+
+      // Refresh conversations to update unread counts
+      fetchConversations()
     } catch (error) {
       console.error("Error fetching messages:", error)
     }
@@ -152,13 +225,13 @@ export default function ClientMessages() {
         sender_id: currentUser.id,
         receiver_id: selectedConversation.id,
         content: newMessage.trim(),
+        read: false,
       })
 
       if (error) throw error
 
       setNewMessage("")
       fetchMessages(selectedConversation.id)
-      fetchConversations()
     } catch (error) {
       console.error("Error sending message:", error)
     }
@@ -210,25 +283,42 @@ export default function ClientMessages() {
                     setSelectedConversation(conversation)
                     fetchMessages(conversation.id)
                   }}
-                  className={`p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors ${
+                  className={`p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors relative ${
                     selectedConversation?.id === conversation.id ? "bg-gray-800/50 border-l-4 border-orange-500" : ""
                   }`}
                 >
                   <div className="flex items-center space-x-3">
-                    <Avatar>
-                      <AvatarImage src="/placeholder.svg?height=40&width=40" alt={conversation.first_name} />
-                      <AvatarFallback className="bg-orange-500 text-white">
-                        {conversation.first_name?.[0]}
-                        {conversation.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar>
+                        <AvatarImage src="/placeholder.svg?height=40&width=40" alt={conversation.first_name} />
+                        <AvatarFallback className="bg-orange-500 text-white">
+                          {conversation.first_name?.[0]}
+                          {conversation.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      {/* Online status indicator */}
+                      {onlineUsers.has(conversation.id) && (
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-900"></div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium truncate">
-                        {conversation.first_name} {conversation.last_name}
-                      </p>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-white font-medium truncate">
+                          {conversation.first_name} {conversation.last_name}
+                        </p>
+                        {onlineUsers.has(conversation.id) && (
+                          <Badge className="bg-green-500/20 text-green-400 text-xs">Online</Badge>
+                        )}
+                      </div>
                       <p className="text-gray-400 text-sm truncate">{conversation.lastMessage}</p>
                     </div>
-                    {conversation.unread && <div className="w-2 h-2 bg-orange-500 rounded-full"></div>}
+                    {conversation.unreadCount > 0 && (
+                      <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">
+                          {conversation.unreadCount > 9 ? "9+" : conversation.unreadCount}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -243,18 +333,25 @@ export default function ClientMessages() {
               {/* Chat Header */}
               <div className="p-6 border-b border-gray-800 bg-gray-900/50">
                 <div className="flex items-center space-x-4">
-                  <Avatar>
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" alt={selectedConversation.first_name} />
-                    <AvatarFallback className="bg-orange-500 text-white">
-                      {selectedConversation.first_name?.[0]}
-                      {selectedConversation.last_name?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar>
+                      <AvatarImage src="/placeholder.svg?height=40&width=40" alt={selectedConversation.first_name} />
+                      <AvatarFallback className="bg-orange-500 text-white">
+                        {selectedConversation.first_name?.[0]}
+                        {selectedConversation.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    {onlineUsers.has(selectedConversation.id) && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-900"></div>
+                    )}
+                  </div>
                   <div>
                     <h3 className="text-white font-semibold">
                       {selectedConversation.first_name} {selectedConversation.last_name}
                     </h3>
-                    <p className="text-gray-400 text-sm">{selectedConversation.email}</p>
+                    <p className="text-gray-400 text-sm">
+                      {onlineUsers.has(selectedConversation.id) ? "Online" : "Offline"}
+                    </p>
                   </div>
                 </div>
               </div>

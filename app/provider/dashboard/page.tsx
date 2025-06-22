@@ -15,6 +15,7 @@ export default function ProviderDashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [providerData, setProviderData] = useState<any>(null)
+  const [userData, setUserData] = useState<any>(null)
   const [stats, setStats] = useState({
     totalEarnings: 0,
     activeProjects: 0,
@@ -31,12 +32,17 @@ export default function ProviderDashboard() {
   }, [])
 
   const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/login")
+        return
+      }
+    } catch (error) {
+      console.error("Auth check error:", error)
       router.push("/login")
-      return
     }
   }
 
@@ -47,16 +53,31 @@ export default function ProviderDashboard() {
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: provider, error } = await supabase
+      // Get user data first
+      const { data: userRecord, error: userError } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+      if (userError) {
+        console.error("User fetch error:", userError)
+        router.push("/login")
+        return
+      }
+
+      setUserData(userRecord)
+
+      // Check if provider profile exists
+      const { data: provider, error: providerError } = await supabase
         .from("service_providers")
-        .select(`
-          *,
-          users!service_providers_user_id_fkey(first_name, last_name, email)
-        `)
+        .select("*")
         .eq("user_id", user.id)
         .single()
 
-      if (error) throw error
+      if (providerError || !provider) {
+        // Provider hasn't completed setup - redirect to setup
+        console.log("No provider profile found, redirecting to setup")
+        router.push("/provider/setup")
+        return
+      }
+
       setProviderData(provider)
 
       // Fetch requests and calculate stats
@@ -77,6 +98,7 @@ export default function ProviderDashboard() {
       }
     } catch (error) {
       console.error("Error fetching provider data:", error)
+      router.push("/provider/setup")
     } finally {
       setLoading(false)
     }
@@ -86,7 +108,7 @@ export default function ProviderDashboard() {
     { icon: TrendingUp, label: "Dashboard", href: "/provider/dashboard" },
     { icon: MessageSquare, label: "Messages", href: "/provider/messages" },
     { icon: CheckCircle, label: "Requests", href: "/provider/requests" },
-    { icon: Users, label: "Clients", href: "/provider/clients" },
+    { icon: Users, label: "Profile", href: "/provider/profile" },
     { icon: Settings, label: "Settings", href: "/provider/settings" },
   ]
 
@@ -108,14 +130,16 @@ export default function ProviderDashboard() {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Welcome back, {providerData?.users?.first_name}!</h1>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Welcome back, {userData?.first_name || "Provider"}!
+                </h1>
                 <p className="text-gray-400 text-lg">Here's what's happening with your freelance business</p>
               </div>
               <Avatar className="h-20 w-20">
                 <AvatarImage src="/placeholder.svg?height=80&width=80" alt="Profile" />
                 <AvatarFallback className="bg-orange-500 text-white text-xl">
-                  {providerData?.users?.first_name?.[0]}
-                  {providerData?.users?.last_name?.[0]}
+                  {userData?.first_name?.[0] || "P"}
+                  {userData?.last_name?.[0] || ""}
                 </AvatarFallback>
               </Avatar>
             </div>
@@ -308,22 +332,28 @@ export default function ProviderDashboard() {
                     <Avatar className="h-24 w-24">
                       <AvatarImage src="/placeholder.svg?height=96&width=96" alt="Profile" />
                       <AvatarFallback className="bg-orange-500 text-white text-2xl">
-                        {providerData?.users?.first_name?.[0]}
-                        {providerData?.users?.last_name?.[0]}
+                        {userData?.first_name?.[0] || "P"}
+                        {userData?.last_name?.[0] || ""}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <h3 className="text-2xl font-bold text-white mb-2">
-                        {providerData?.users?.first_name} {providerData?.users?.last_name}
+                        {userData?.first_name || ""} {userData?.last_name || ""}
                       </h3>
-                      <p className="text-orange-400 font-medium text-lg mb-3">{providerData?.brand_name}</p>
-                      <p className="text-gray-300 mb-4">{providerData?.description}</p>
+                      <p className="text-orange-400 font-medium text-lg mb-3">
+                        {providerData?.brand_name || "Brand Name"}
+                      </p>
+                      <p className="text-gray-300 mb-4">{providerData?.description || "No description available"}</p>
                       <div className="flex flex-wrap gap-2">
                         {providerData?.services?.map((service: string) => (
                           <Badge key={service} variant="outline" className="border-gray-600 text-gray-300">
                             {service}
                           </Badge>
-                        ))}
+                        )) || (
+                          <Badge variant="outline" className="border-gray-600 text-gray-300">
+                            No services listed
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1,226 +1,200 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sidebar } from "@/components/sidebar"
-import { Search, MessageSquare, Send, Calendar, DollarSign, Clock, CheckCircle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ReviewModal } from "@/components/review-modal"
+import { Search, MessageSquare, Send, Settings, User, Clock, DollarSign, MapPin, CheckCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
+const sidebarItems = [
+  { icon: Search, label: "Find Services", href: "/client/dashboard" },
+  { icon: MessageSquare, label: "Messages", href: "/client/messages" },
+  { icon: Send, label: "My Requests", href: "/client/requests" },
+  { icon: User, label: "Profile", href: "/client/profile" },
+  { icon: Settings, label: "Settings", href: "/client/settings" },
+]
+
 export default function ClientRequests() {
-  const router = useRouter()
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    document.documentElement.classList.add("dark")
-    checkAuth()
     fetchRequests()
-  }, [])
 
-  const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      router.push("/login")
-      return
+    // Set up real-time subscription
+    const channelName = `client-requests-${Date.now()}-${Math.random()}`
+    const channel = supabase
+      .channel(channelName)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "service_requests" }, () => fetchRequests())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "service_requests" }, () => fetchRequests())
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }
+  }, [])
 
   const fetchRequests = async () => {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser()
+      if (authError) throw authError
       if (!user) return
 
-      const { data, error } = await supabase
-        .from("requests")
+      // Fetch requests for this client
+      const { data: requestsData, error } = await supabase
+        .from("service_requests")
         .select(`
           *,
-          service_providers!requests_provider_id_fkey(
+          provider:service_providers!service_requests_provider_id_fkey(
+            id,
             brand_name,
-            users!service_providers_user_id_fkey(first_name, last_name)
+            user_id,
+            users!service_providers_user_id_fkey(first_name, last_name, email)
           )
         `)
         .eq("client_id", user.id)
         .order("created_at", { ascending: false })
 
       if (error) throw error
-      setRequests(data || [])
+      setRequests(requestsData || [])
     } catch (error) {
       console.error("Error fetching requests:", error)
+      setRequests([])
     } finally {
       setLoading(false)
     }
   }
 
-  const markAsCompleted = async (requestId: string) => {
+  const updateRequestStatus = async (requestId: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from("requests")
-        .update({ status: "client_completed" })
-        .eq("id", requestId)
-        .eq("status", "in_progress")
+      const { error } = await supabase.from("service_requests").update({ status }).eq("id", requestId)
 
-      if (error) throw error
-      fetchRequests()
+      if (!error) {
+        fetchRequests()
+      }
     } catch (error) {
-      console.error("Error marking request as completed:", error)
+      console.error("Error updating request:", error)
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+        return "bg-yellow-500/20 text-yellow-400"
       case "accepted":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+        return "bg-green-500/20 text-green-400"
       case "rejected":
-        return "bg-red-500/20 text-red-400 border-red-500/30"
+        return "bg-red-500/20 text-red-400"
       case "in_progress":
-        return "bg-purple-500/20 text-purple-400 border-purple-500/30"
-      case "client_completed":
-        return "bg-orange-500/20 text-orange-400 border-orange-500/30"
+        return "bg-blue-500/20 text-blue-400"
       case "completed":
-        return "bg-green-500/20 text-green-400 border-green-500/30"
+        return "bg-purple-500/20 text-purple-400"
       default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+        return "bg-gray-500/20 text-gray-400"
     }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "Pending"
-      case "accepted":
-        return "Accepted"
-      case "rejected":
-        return "Rejected"
-      case "in_progress":
-        return "In Progress"
-      case "client_completed":
-        return "Awaiting Provider Completion"
-      case "completed":
-        return "Completed"
-      default:
-        return status
-    }
-  }
-
-  const sidebarItems = [
-    { icon: Search, label: "Find Services", href: "/client/dashboard" },
-    { icon: MessageSquare, label: "Messages", href: "/client/messages" },
-    { icon: Send, label: "My Requests", href: "/client/requests" },
-  ]
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Sidebar items={sidebarItems} userType="client" />
 
-      <div className="flex-1 ml-64 p-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
+      <div className="ml-64 p-8">
+        <div className="max-w-7xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">My Requests</h1>
-            <p className="text-gray-400 text-lg">Track your project requests and their progress</p>
+            <h1 className="text-4xl font-bold text-white mb-2">My Service Requests</h1>
+            <p className="text-gray-400 text-lg">Track your service requests and their progress</p>
           </div>
 
-          {/* Requests List */}
-          <div className="space-y-6">
-            {requests.length === 0 ? (
-              <Card className="bg-gray-900/50 border-gray-800 shadow-dark">
-                <CardContent className="p-12 text-center">
-                  <Send className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-2">No requests yet</h3>
-                  <p className="text-gray-400 mb-6">
-                    Start by contacting service providers to create your first request
-                  </p>
-                  <Button
-                    onClick={() => router.push("/client/dashboard")}
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-                  >
-                    Find Service Providers
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              requests.map((request) => (
-                <Card
-                  key={request.id}
-                  className="bg-gray-900/50 border-gray-800 hover:border-orange-500/50 transition-all duration-300 shadow-dark"
-                >
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="text-white">Loading requests...</div>
+            </div>
+          ) : requests.length === 0 ? (
+            <Card className="bg-gray-900/50 border-gray-800">
+              <CardContent className="text-center py-12">
+                <Send className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Requests Yet</h3>
+                <p className="text-gray-400">When you request services from providers, they'll appear here.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {requests.map((request) => (
+                <Card key={request.id} className="bg-gray-900/50 border-gray-800">
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-white text-xl mb-2">{request.title}</CardTitle>
-                        <div className="flex items-center space-x-4 text-sm text-gray-400 mb-3">
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            <span>Created {new Date(request.created_at).toLocaleDateString()}</span>
-                          </div>
-                          {request.deadline && (
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 mr-1" />
-                              <span>Due {new Date(request.deadline).toLocaleDateString()}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center">
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            <span>${request.budget}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src="/placeholder.svg?height=32&width=32"
-                              alt={request.service_providers?.users?.first_name}
-                            />
-                            <AvatarFallback className="bg-orange-500 text-white text-sm">
-                              {request.service_providers?.users?.first_name?.[0]}
-                              {request.service_providers?.users?.last_name?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-gray-300">
-                            {request.service_providers?.users?.first_name} {request.service_providers?.users?.last_name}
-                          </span>
-                          <span className="text-orange-400">({request.service_providers?.brand_name})</span>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center space-x-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="bg-orange-500 text-white">
+                            {request.provider?.users?.first_name?.[0] || "P"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <CardTitle className="text-white">{request.title}</CardTitle>
+                          <CardDescription className="text-gray-400">
+                            To: {request.provider?.users?.first_name} {request.provider?.users?.last_name} (
+                            {request.provider?.brand_name})
+                          </CardDescription>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end space-y-3">
-                        <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
-                        {request.status === "in_progress" && (
-                          <Button
-                            onClick={() => markAsCompleted(request.id)}
-                            size="sm"
-                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Mark Complete
-                          </Button>
-                        )}
-                      </div>
+                      <Badge className={getStatusColor(request.status)}>{request.status.replace("_", " ")}</Badge>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-300 leading-relaxed">{request.description}</p>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="text-white font-medium mb-2">Request Details</h4>
+                      <p className="text-gray-300">{request.description}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="h-4 w-4 text-green-400" />
+                        <span className="text-gray-400">Budget:</span>
+                        <span className="text-white">${request.budget}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-blue-400" />
+                        <span className="text-gray-400">Deadline:</span>
+                        <span className="text-white">{new Date(request.deadline).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="h-4 w-4 text-orange-400" />
+                        <span className="text-gray-400">Location:</span>
+                        <span className="text-white">{request.location || "Remote"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-3 pt-4">
+                      {request.status === "in_progress" && (
+                        <Button
+                          onClick={() => updateRequestStatus(request.id, "completed")}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Mark as Completed
+                        </Button>
+                      )}
+
+                      {request.status === "completed" && (
+                        <ReviewModal
+                          requestId={request.id}
+                          providerId={request.provider_id}
+                          providerName={`${request.provider?.users?.first_name} ${request.provider?.users?.last_name}`}
+                        />
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

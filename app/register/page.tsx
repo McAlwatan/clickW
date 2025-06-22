@@ -43,7 +43,6 @@ export default function RegisterPage() {
     setError("")
     setSuccess("")
 
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords don't match!")
       return
@@ -56,123 +55,67 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      console.log("Starting registration process...")
-
-      // Step 1: Sign up with Supabase Auth
+      // Step 1: Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            user_type: userType,
-          },
-        },
       })
 
       if (authError) {
         console.error("Auth error:", authError)
-        if (authError.message.includes("User already registered")) {
-          setError("An account with this email already exists. Please sign in instead.")
-        } else if (authError.message.includes("Invalid email")) {
-          setError("Please enter a valid email address.")
-        } else {
-          setError(authError.message)
-        }
+        setError(authError.message)
         return
       }
-
-      console.log("Auth signup successful:", authData)
 
       if (!authData.user) {
-        setError("Registration failed. Please try again.")
+        setError("Failed to create account")
         return
       }
 
-      // Step 2: For development/testing, we'll insert the user data immediately
-      // In production, you might want to wait for email confirmation
-      console.log("Inserting user data into users table...")
-
-      try {
-        // Use the service role or a more direct approach
-        const { data: insertData, error: userError } = await supabase
-          .from("users")
-          .insert({
-            id: authData.user.id,
-            email: formData.email,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            user_type: userType,
-          })
-          .select()
-
-        if (userError) {
-          console.error("User insert error:", userError)
-
-          // If it's an RLS error, try a different approach
-          if (userError.message.includes("row-level security")) {
-            console.log("RLS error detected, trying alternative approach...")
-
-            // Sign in the user first to establish session
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email: formData.email,
-              password: formData.password,
-            })
-
-            if (signInError) {
-              console.error("Sign in error:", signInError)
-              setError("Account created but couldn't establish session. Please try signing in.")
-              return
-            }
-
-            // Wait a moment for session to establish
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-
-            // Try inserting user data again
-            const { data: retryInsertData, error: retryUserError } = await supabase
-              .from("users")
-              .insert({
-                id: authData.user.id,
-                email: formData.email,
-                first_name: formData.firstName,
-                last_name: formData.lastName,
-                user_type: userType,
-              })
-              .select()
-
-            if (retryUserError) {
-              console.error("Retry user insert error:", retryUserError)
-              setError(`Registration failed: ${retryUserError.message}. Please contact support.`)
-              return
-            }
-
-            console.log("User data inserted successfully on retry:", retryInsertData)
-          } else {
-            setError(`Registration failed: ${userError.message}. Please try again.`)
-            return
-          }
-        } else {
-          console.log("User data inserted successfully:", insertData)
-        }
-
-        // Step 3: Success - redirect based on user type
-        setSuccess("Registration successful!")
-
-        setTimeout(() => {
-          if (userType === "provider") {
-            router.push("/provider/setup")
-          } else {
-            router.push("/login?message=Registration successful! Please sign in.")
-          }
-        }, 1500)
-      } catch (insertError: any) {
-        console.error("Insert operation error:", insertError)
-        setError(`Registration failed during data insertion: ${insertError.message}`)
+      // Step 2: Create user record - FORCE INSERT
+      const userRecord = {
+        id: authData.user.id,
+        email: formData.email,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        user_type: userType,
+        profile_photo: null,
+        created_at: new Date().toISOString(),
       }
+
+      const { data: userData, error: userError } = await supabase.from("users").insert(userRecord).select()
+
+      if (userError) {
+        console.error("User insert failed:", userError)
+        setError(`Failed to create user profile: ${userError.message}`)
+        return
+      }
+
+      // Step 3: Sign in the user immediately
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (signInError) {
+        console.error("Auto sign-in failed:", signInError)
+        setError("Account created but sign-in failed. Please try logging in manually.")
+        return
+      }
+
+      setSuccess("Account created successfully! Redirecting...")
+
+      // Step 4: Redirect based on user type
+      setTimeout(() => {
+        if (userType === "provider") {
+          router.push("/provider/setup")
+        } else {
+          router.push("/client/dashboard")
+        }
+      }, 1500)
     } catch (error: any) {
-      console.error("Registration error:", error)
-      setError(`Registration failed: ${error.message || "Please try again."}`)
+      console.error("Registration failed:", error)
+      setError(`Registration failed: ${error.message}`)
     } finally {
       setLoading(false)
     }

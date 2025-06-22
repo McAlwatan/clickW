@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -8,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sidebar } from "@/components/sidebar"
-import { Search, MessageSquare, Send, Save, AlertCircle, CheckCircle, MapPin, Mail, User } from "lucide-react"
+import { Search, MessageSquare, Send, Save, AlertCircle, CheckCircle, MapPin, Mail, User, Camera } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 export default function ClientSettings() {
@@ -25,6 +27,9 @@ export default function ClientSettings() {
     newPassword: "",
     confirmPassword: "",
   })
+
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string>("")
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
@@ -185,6 +190,16 @@ export default function ClientSettings() {
     }
   }
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setProfilePhoto(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setPhotoPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
   const sidebarItems = [
     { icon: Search, label: "Find Services", href: "/client/dashboard" },
     { icon: MessageSquare, label: "Messages", href: "/client/messages" },
@@ -280,6 +295,40 @@ export default function ClientSettings() {
                   <Save className="mr-2 h-4 w-4" />
                   {loading ? "Saving..." : "Save Profile"}
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Profile Photo */}
+            <Card className="bg-gray-900/50 border-gray-800 shadow-dark">
+              <CardHeader>
+                <CardTitle className="text-white">Profile Photo</CardTitle>
+                <CardDescription className="text-gray-400">Upload your profile picture</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center overflow-hidden">
+                    {photoPreview || userData?.profile_photo ? (
+                      <img
+                        src={photoPreview || userData?.profile_photo}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-8 w-8 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <input type="file" id="photo" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                    <Button
+                      onClick={() => document.getElementById("photo")?.click()}
+                      variant="outline"
+                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Upload Photo
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sidebar } from "@/components/sidebar"
+import { RequestServiceModal } from "@/components/request-service-modal"
 import { Search, Star, MapPin, Clock, DollarSign, MessageSquare, Send, Eye } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
@@ -19,34 +20,68 @@ export default function ClientDashboard() {
   const [providers, setProviders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<any>(null)
+  const [userRequests, setUserRequests] = useState<any[]>([])
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
     checkAuth()
     fetchProviders()
     getUserLocation()
+    fetchUserRequests()
   }, [])
 
   const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser()
+      if (error) throw error
+      if (!user) {
+        router.push("/login")
+        return
+      }
+    } catch (error) {
+      console.error("Auth error:", error)
       router.push("/login")
-      return
     }
   }
 
   const getUserLocation = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase.from("users").select("location").eq("id", user.id).single()
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase.from("users").select("location").eq("id", user.id).single()
 
-      if (data?.location) {
-        setUserLocation(data.location)
+        if (data?.location) {
+          setUserLocation(data.location)
+        }
       }
+    } catch (error) {
+      console.error("Error fetching user location:", error)
+    }
+  }
+
+  const fetchUserRequests = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from("service_requests")
+        .select("provider_id, status")
+        .eq("client_id", user.id)
+        .in("status", ["pending", "accepted", "in_progress"])
+
+      if (error) throw error
+      setUserRequests(data || [])
+    } catch (error) {
+      console.error("Error fetching user requests:", error)
+      setUserRequests([])
     }
   }
 
@@ -64,6 +99,7 @@ export default function ClientDashboard() {
       setProviders(data || [])
     } catch (error) {
       console.error("Error fetching providers:", error)
+      setProviders([])
     } finally {
       setLoading(false)
     }
@@ -80,6 +116,10 @@ export default function ClientDashboard() {
     return R * c
   }
 
+  const hasActiveRequest = (providerId: string) => {
+    return userRequests.some((req) => req.provider_id === providerId)
+  }
+
   const filteredProviders = providers
     .filter((provider) => {
       const matchesSearch =
@@ -93,7 +133,7 @@ export default function ClientDashboard() {
       return matchesSearch && matchesService
     })
     .sort((a, b) => {
-      // Sort by location proximity if user location is available
+      // First, sort by location proximity if user location is available
       if (userLocation && a.location && b.location) {
         const distanceA = calculateDistance(
           userLocation.latitude,
@@ -107,10 +147,20 @@ export default function ClientDashboard() {
           b.location.latitude,
           b.location.longitude,
         )
-        return distanceA - distanceB
+
+        // If distances are significantly different (more than 10km), sort by distance
+        if (Math.abs(distanceA - distanceB) > 10) {
+          return distanceA - distanceB
+        }
       }
-      // Otherwise sort by rating (show all providers, even with low ratings)
-      return b.rating - a.rating
+
+      // If locations are similar or not available, sort by rating (higher first)
+      if (Math.abs(b.rating - a.rating) > 0.5) {
+        return b.rating - a.rating
+      }
+
+      // If ratings are similar, sort by total reviews
+      return b.total_reviews - a.total_reviews
     })
 
   const handleContactProvider = async (providerId: string) => {
@@ -119,6 +169,10 @@ export default function ClientDashboard() {
 
   const handleViewProfile = (providerId: string) => {
     router.push(`/provider/profile/${providerId}`)
+  }
+
+  const handleRequestSent = () => {
+    fetchUserRequests() // Refresh the requests to update UI
   }
 
   const sidebarItems = [
@@ -219,6 +273,9 @@ export default function ClientDashboard() {
                               {provider.users?.first_name} {provider.users?.last_name}
                             </h3>
                             <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Available</Badge>
+                            {hasActiveRequest(provider.id) && (
+                              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Requested</Badge>
+                            )}
                           </div>
                           <p className="text-orange-400 font-medium text-lg mb-3">{provider.brand_name}</p>
                           <p className="text-gray-300 mb-4 leading-relaxed">{provider.description}</p>
@@ -274,6 +331,20 @@ export default function ClientDashboard() {
                             <MessageSquare className="mr-2 h-4 w-4" />
                             Contact Provider
                           </Button>
+
+                          {hasActiveRequest(provider.id) ? (
+                            <Button disabled className="w-full md:w-auto bg-gray-600 cursor-not-allowed">
+                              <Send className="mr-2 h-4 w-4" />
+                              Request Sent
+                            </Button>
+                          ) : (
+                            <RequestServiceModal
+                              providerId={provider.id}
+                              providerName={`${provider.users?.first_name} ${provider.users?.last_name}`}
+                              onRequestSent={handleRequestSent}
+                            />
+                          )}
+
                           <Button
                             onClick={() => handleViewProfile(provider.id)}
                             variant="outline"

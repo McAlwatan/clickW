@@ -11,12 +11,26 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    // Set dark mode by default
-    document.documentElement.classList.add("dark")
+    try {
+      setMounted(true)
+      // Safely set dark mode
+      if (typeof window !== "undefined" && document) {
+        document.documentElement.classList.add("dark")
+      }
+    } catch (error) {
+      console.error("Error in useEffect:", error)
+      setMounted(true) // Still set mounted to show the page
+    }
   }, [])
 
-  if (!mounted) return null
+  // Show loading state while mounting
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
@@ -24,7 +38,7 @@ export default function HomePage() {
       <header className="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-glow">
+            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-lg">CW</span>
             </div>
             <span className="text-2xl font-bold text-white">ClickWork</span>
@@ -40,7 +54,7 @@ export default function HomePage() {
               Sign In
             </Link>
             <Link href="/register">
-              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-glow">
+              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700">
                 Get Started
               </Button>
             </Link>
@@ -69,7 +83,7 @@ export default function HomePage() {
             <Link href="/register?type=client">
               <Button
                 size="lg"
-                className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-glow-lg text-lg px-8 py-4"
+                className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-lg px-8 py-4"
               >
                 <Search className="mr-3 h-6 w-6" />
                 Find Talent
@@ -80,7 +94,7 @@ export default function HomePage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full sm:w-auto border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white shadow-dark text-lg px-8 py-4"
+                className="w-full sm:w-auto border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white text-lg px-8 py-4"
               >
                 <Users className="mr-3 h-6 w-6" />
                 Start Freelancing
@@ -163,7 +177,7 @@ export default function HomePage() {
             ].map((feature, index) => (
               <Card
                 key={index}
-                className="bg-gray-900/50 border-gray-800 hover:border-orange-500/50 transition-all duration-300 shadow-dark hover:shadow-glow"
+                className="bg-gray-900/50 border-gray-800 hover:border-orange-500/50 transition-all duration-300"
               >
                 <CardHeader>
                   <feature.icon className={`h-12 w-12 ${feature.color} mb-4`} />
@@ -205,7 +219,7 @@ export default function HomePage() {
               },
             ].map((step, index) => (
               <div key={index} className="text-center relative">
-                <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-2xl font-bold text-white mb-6 mx-auto shadow-glow">
+                <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-2xl font-bold text-white mb-6 mx-auto">
                   {step.step}
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-4">{step.title}</h3>
@@ -229,7 +243,7 @@ export default function HomePage() {
           <Link href="/register">
             <Button
               size="lg"
-              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-glow-lg text-xl px-12 py-6"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-xl px-12 py-6"
             >
               Start Your Journey Today
               <ArrowRight className="ml-3 h-6 w-6" />
@@ -244,7 +258,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-glow">
+                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
                   <span className="text-white font-bold text-lg">CW</span>
                 </div>
                 <span className="text-2xl font-bold text-white">ClickWork</span>
@@ -285,7 +299,7 @@ export default function HomePage() {
 
           <div className="border-t border-gray-800 pt-8 text-center">
             <p className="text-gray-400">
-              &copy; 2024 ClickWork. All rights reserved. Built with ❤️ for the freelance community.
+              &copy; 2025 ClickWork. All rights reserved. Built with ❤️ for the freelance community.
             </p>
           </div>
         </div>

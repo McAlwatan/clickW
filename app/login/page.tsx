@@ -303,15 +303,6 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
-
-          {/* Debug Info - Remove in production */}
-          <div className="mt-6 p-4 bg-gray-800/50 rounded-lg">
-            <p className="text-xs text-gray-500 mb-2">Debug Info:</p>
-            <p className="text-xs text-gray-400">
-              If you just registered, make sure you completed the registration process successfully.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Try registering again if you're having issues.</p>
-          </div>
         </CardContent>
       </Card>
     </div>

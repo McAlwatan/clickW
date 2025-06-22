@@ -1,20 +1,35 @@
 import { createClient } from "@supabase/supabase-js"
 
-// Get environment variables with fallbacks for development
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://your-project.supabase.co"
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "your-anon-key"
+// Get environment variables with better error handling
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Create Supabase client with error handling
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Missing Supabase environment variables!")
+  console.error("NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "SET" : "MISSING")
+  console.error("NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "SET" : "MISSING")
+}
+
+// Create fallback values for development (you should replace these with your actual values)
+const fallbackUrl = "https://your-project.supabase.co"
+const fallbackKey = "your-anon-key"
+
+// Create Supabase client with production-ready configuration
+export const supabase = createClient(supabaseUrl || fallbackUrl, supabaseAnonKey || fallbackKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: "pkce",
   },
   global: {
     headers: {
       "X-Client-Info": "clickwork-app",
     },
+  },
+  db: {
+    schema: "public",
   },
 })
 
@@ -40,6 +55,22 @@ export const getCurrentUser = async () => {
 export const isAuthenticated = async () => {
   const user = await getCurrentUser()
   return !!user
+}
+
+// Helper function to test connection
+export const testConnection = async () => {
+  try {
+    const { data, error } = await supabase.from("users").select("count").limit(1)
+    if (error) {
+      console.error("Connection test failed:", error)
+      return false
+    }
+    console.log("Supabase connection successful!")
+    return true
+  } catch (error) {
+    console.error("Connection test error:", error)
+    return false
+  }
 }
 
 // Types for our database

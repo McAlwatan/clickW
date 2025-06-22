@@ -30,16 +30,26 @@ export function ReviewModal({ requestId, providerName, requestStatus, onReviewSu
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState("")
   const [hoveredRating, setHoveredRating] = useState(0)
-  const [canReview, setCanReview] = useState(false)
+  const [hasReviewed, setHasReviewed] = useState(false)
 
   useEffect(() => {
-    // Only allow reviews if the request is completed
-    setCanReview(requestStatus === "completed")
-  }, [requestStatus])
+    checkExistingReview()
+  }, [requestId])
+
+  const checkExistingReview = async () => {
+    try {
+      const { data } = await supabase.from("reviews").select("id").eq("request_id", requestId).single()
+
+      setHasReviewed(!!data)
+    } catch (error) {
+      // No existing review found
+      setHasReviewed(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (rating === 0 || !canReview) return
+    if (rating === 0 || requestStatus !== "completed") return
 
     setLoading(true)
     try {
@@ -48,8 +58,18 @@ export function ReviewModal({ requestId, providerName, requestStatus, onReviewSu
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
+      // Get provider ID from the request
+      const { data: request } = await supabase
+        .from("service_requests")
+        .select("provider_id")
+        .eq("id", requestId)
+        .single()
+
+      if (!request) throw new Error("Request not found")
+
       const { error } = await supabase.from("reviews").insert({
         client_id: user.id,
+        provider_id: request.provider_id,
         request_id: requestId,
         rating,
         comment: comment.trim() || null,
@@ -60,6 +80,7 @@ export function ReviewModal({ requestId, providerName, requestStatus, onReviewSu
       setOpen(false)
       setRating(0)
       setComment("")
+      setHasReviewed(true)
       onReviewSubmitted?.()
 
       alert("Review submitted successfully!")
@@ -71,12 +92,12 @@ export function ReviewModal({ requestId, providerName, requestStatus, onReviewSu
     }
   }
 
-  if (!canReview) {
-    return (
-      <Button disabled className="bg-gray-600 cursor-not-allowed">
-        <Star className="mr-2 h-4 w-4" />
-        Complete Service to Review
-      </Button>
+  // Only show review button if work is completed and not already reviewed
+  if (requestStatus !== "completed" || hasReviewed) {
+    return hasReviewed ? (
+      <div className="text-green-400 text-sm">✅ Review submitted</div>
+    ) : (
+      <div className="text-gray-400 text-sm">Complete work to leave review</div>
     )
   }
 

@@ -44,7 +44,6 @@ export default function ProviderRequests() {
 
   const initializePage = async () => {
     try {
-      // Get current user
       const user = await getCurrentUser()
       if (!user) {
         router.push("/login")
@@ -52,7 +51,6 @@ export default function ProviderRequests() {
       }
       setCurrentUser(user)
 
-      // Get provider profile
       const { data: provider, error: providerError } = await supabase
         .from("service_providers")
         .select("*")
@@ -67,34 +65,22 @@ export default function ProviderRequests() {
       }
 
       setCurrentProvider(provider)
-      console.log("Current provider:", provider)
-
-      // Fetch requests
       await fetchRequests(provider.id)
 
-      // Set up real-time subscription
       const channelName = `provider-requests-${provider.id}-${Date.now()}`
       const channel = supabase
         .channel(channelName)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "service_requests", filter: `provider_id=eq.${provider.id}` },
-          (payload) => {
-            console.log("New request received:", payload)
-            fetchRequests(provider.id)
-          },
+          () => fetchRequests(provider.id),
         )
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "service_requests", filter: `provider_id=eq.${provider.id}` },
-          (payload) => {
-            console.log("Request updated:", payload)
-            fetchRequests(provider.id)
-          },
+          () => fetchRequests(provider.id),
         )
-        .subscribe((status) => {
-          console.log("Subscription status:", status)
-        })
+        .subscribe()
 
       return () => {
         supabase.removeChannel(channel)
@@ -108,18 +94,6 @@ export default function ProviderRequests() {
 
   const fetchRequests = async (providerId: string) => {
     try {
-      console.log("Fetching requests for provider:", providerId)
-
-      // First, let's try a simple query to see if we get any data
-      const { data: allRequests, error: allError } = await supabase
-        .from("service_requests")
-        .select("*")
-        .eq("provider_id", providerId)
-
-      console.log("All requests for provider:", allRequests)
-      console.log("Query error:", allError)
-
-      // Now try with the join
       const { data: requestsData, error: requestsError } = await supabase
         .from("service_requests")
         .select(`
@@ -130,19 +104,14 @@ export default function ProviderRequests() {
         .order("created_at", { ascending: false })
 
       if (requestsError) {
-        console.error("Requests fetch error:", requestsError)
-        // Fallback: try without the join
         const { data: simpleRequests, error: simpleError } = await supabase
           .from("service_requests")
           .select("*")
           .eq("provider_id", providerId)
           .order("created_at", { ascending: false })
 
-        if (simpleError) {
-          throw simpleError
-        }
+        if (simpleError) throw simpleError
 
-        // Manually fetch client data for each request
         const requestsWithClients = await Promise.all(
           (simpleRequests || []).map(async (request) => {
             const { data: client } = await supabase
@@ -175,13 +144,32 @@ export default function ProviderRequests() {
 
       if (error) throw error
 
-      // Refresh requests after update
       if (currentProvider) {
         await fetchRequests(currentProvider.id)
       }
     } catch (error) {
       console.error("Error updating request:", error)
       alert("Failed to update request status")
+    }
+  }
+
+  const markProviderComplete = async (requestId: string) => {
+    try {
+      // Only allow if client has already marked as complete
+      const { error } = await supabase
+        .from("service_requests")
+        .update({ status: "completed" })
+        .eq("id", requestId)
+        .eq("status", "client_completed")
+
+      if (error) throw error
+
+      if (currentProvider) {
+        await fetchRequests(currentProvider.id)
+      }
+    } catch (error) {
+      console.error("Error marking as complete:", error)
+      alert("Failed to mark as complete")
     }
   }
 
@@ -201,10 +189,33 @@ export default function ProviderRequests() {
         return "bg-gray-500/20 text-gray-400"
       case "in_progress":
         return "bg-blue-500/20 text-blue-400"
+      case "client_completed":
+        return "bg-orange-500/20 text-orange-400"
       case "completed":
         return "bg-purple-500/20 text-purple-400"
       default:
         return "bg-gray-500/20 text-gray-400"
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "Pending"
+      case "accepted":
+        return "Accepted"
+      case "rejected":
+        return "Rejected"
+      case "cancelled":
+        return "Cancelled"
+      case "in_progress":
+        return "In Progress"
+      case "client_completed":
+        return "Client Marked Done"
+      case "completed":
+        return "Completed"
+      default:
+        return status
     }
   }
 
@@ -235,7 +246,6 @@ export default function ProviderRequests() {
             <p className="text-gray-400 text-lg">
               Manage your client requests {currentProvider && `(${currentProvider.brand_name})`}
             </p>
-            {loading && <p className="text-yellow-400">Loading requests...</p>}
           </div>
 
           {loading ? (
@@ -248,12 +258,10 @@ export default function ProviderRequests() {
                 <FileText className="h-16 w-16 text-gray-600 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-white mb-2">No Requests Yet</h3>
                 <p className="text-gray-400">When clients send you service requests, they'll appear here.</p>
-                {currentProvider && <p className="text-gray-500 text-sm mt-2">Provider ID: {currentProvider.id}</p>}
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-6">
-              <div className="text-white mb-4">Found {requests.length} request(s)</div>
               {requests.map((request) => (
                 <Card key={request.id} className="bg-gray-900/50 border-gray-800">
                   <CardHeader>
@@ -271,7 +279,7 @@ export default function ProviderRequests() {
                           </CardDescription>
                         </div>
                       </div>
-                      <Badge className={getStatusColor(request.status)}>{request.status.replace("_", " ")}</Badge>
+                      <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -298,9 +306,7 @@ export default function ProviderRequests() {
                       </div>
                     </div>
 
-                    {/* Action buttons based on status */}
                     <div className="flex flex-wrap gap-3 pt-4">
-                      {/* Message Client button - always available */}
                       <Button
                         onClick={() => handleMessageClient(request.client_id)}
                         variant="outline"
@@ -310,7 +316,6 @@ export default function ProviderRequests() {
                         Message Client
                       </Button>
 
-                      {/* Status-specific buttons */}
                       {request.status === "pending" && (
                         <>
                           <Button
@@ -340,13 +345,18 @@ export default function ProviderRequests() {
                         </Button>
                       )}
 
-                      {request.status === "in_progress" && (
+                      {request.status === "client_completed" && (
                         <Button
-                          onClick={() => updateRequestStatus(request.id, "completed")}
+                          onClick={() => markProviderComplete(request.id)}
                           className="bg-purple-600 hover:bg-purple-700"
                         >
-                          Mark as Completed
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Confirm Completion
                         </Button>
+                      )}
+
+                      {request.status === "completed" && (
+                        <div className="text-green-400 text-sm">✅ Work completed - Client can now leave review</div>
                       )}
                     </div>
                   </CardContent>

@@ -72,15 +72,19 @@ export default function ClientRequests() {
     }
   }
 
-  const updateRequestStatus = async (requestId: string, status: string) => {
+  const markClientComplete = async (requestId: string) => {
     try {
-      const { error } = await supabase.from("service_requests").update({ status }).eq("id", requestId)
+      const { error } = await supabase
+        .from("service_requests")
+        .update({ status: "client_completed" })
+        .eq("id", requestId)
+        .eq("status", "in_progress")
 
       if (!error) {
         fetchRequests()
       }
     } catch (error) {
-      console.error("Error updating request:", error)
+      console.error("Error marking as complete:", error)
     }
   }
 
@@ -94,10 +98,31 @@ export default function ClientRequests() {
         return "bg-red-500/20 text-red-400"
       case "in_progress":
         return "bg-blue-500/20 text-blue-400"
+      case "client_completed":
+        return "bg-orange-500/20 text-orange-400"
       case "completed":
         return "bg-purple-500/20 text-purple-400"
       default:
         return "bg-gray-500/20 text-gray-400"
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "Pending"
+      case "accepted":
+        return "Accepted"
+      case "rejected":
+        return "Rejected"
+      case "in_progress":
+        return "In Progress"
+      case "client_completed":
+        return "Awaiting Provider Completion"
+      case "completed":
+        return "Completed"
+      default:
+        return status
     }
   }
 
@@ -144,7 +169,7 @@ export default function ClientRequests() {
                           </CardDescription>
                         </div>
                       </div>
-                      <Badge className={getStatusColor(request.status)}>{request.status.replace("_", " ")}</Badge>
+                      <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -172,21 +197,29 @@ export default function ClientRequests() {
                     </div>
 
                     <div className="flex space-x-3 pt-4">
+                      {/* Client can mark as done when work is in progress */}
                       {request.status === "in_progress" && (
                         <Button
-                          onClick={() => updateRequestStatus(request.id, "completed")}
-                          className="bg-purple-600 hover:bg-purple-700"
+                          onClick={() => markClientComplete(request.id)}
+                          className="bg-green-600 hover:bg-green-700"
                         >
                           <CheckCircle className="mr-2 h-4 w-4" />
-                          Mark as Completed
+                          Mark as Done
                         </Button>
                       )}
 
+                      {/* Show waiting message when client completed but provider hasn't */}
+                      {request.status === "client_completed" && (
+                        <div className="text-orange-400 text-sm">⏳ Waiting for provider to confirm completion...</div>
+                      )}
+
+                      {/* Review button only appears when BOTH have marked complete */}
                       {request.status === "completed" && (
                         <ReviewModal
                           requestId={request.id}
-                          providerId={request.provider_id}
                           providerName={`${request.provider?.users?.first_name} ${request.provider?.users?.last_name}`}
+                          requestStatus={request.status}
+                          onReviewSubmitted={fetchRequests}
                         />
                       )}
                     </div>

@@ -75,6 +75,16 @@ export function ReviewModal({ requestId, providerName, requestStatus, onReviewSu
         comment: comment.trim() || null,
       })
 
+      if (!provider) throw new Error("Provider not found")
+
+      await supabase.from("reviews").insert({
+        client_id: user.id,
+        provider_id: provider.user_id, // 👈 now using users.id!
+        request_id: requestId,
+        rating,
+        comment: comment.trim() || null,
+      })
+
       if (error) throw error
 
       setOpen(false)

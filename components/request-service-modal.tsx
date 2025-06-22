@@ -62,7 +62,7 @@ export function RequestServiceModal({ providerId, providerName, onRequestSent }:
         location: formData.location.trim() || "Remote",
         deadline: formData.deadline
           ? formData.deadline.toISOString().split("T")[0]
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 30 days from now
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // siku 30 kutoka sku ya request
         status: "pending",
       })
 
@@ -133,7 +133,7 @@ export function RequestServiceModal({ providerId, providerName, onRequestSent }:
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="budget" className="text-white">
-                Budget ($) *
+                Budget (Tsh) *
               </Label>
               <Input
                 id="budget"

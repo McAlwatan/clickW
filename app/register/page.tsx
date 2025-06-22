@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Search, ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react"
+import { Users, Search, ArrowLeft, Mail, Lock, User, AlertCircle, CheckCircle, Shield } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { Captcha } from "@/components/captcha"
 
 export default function RegisterPage() {
   const searchParams = useSearchParams()
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>("")
   const [success, setSuccess] = useState<string>("")
+  const [captchaVerified, setCaptchaVerified] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -42,6 +44,11 @@ export default function RegisterPage() {
     e.preventDefault()
     setError("")
     setSuccess("")
+
+    if (!captchaVerified) {
+      setError("Please complete the CAPTCHA verification!")
+      return
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords don't match!")
@@ -304,6 +311,15 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* CAPTCHA Section */}
+            <div className="space-y-2">
+              <Label className="text-gray-300 flex items-center">
+                <Shield className="mr-2 h-4 w-4" />
+                Security Verification
+              </Label>
+              <Captcha onVerify={setCaptchaVerified} />
+            </div>
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="terms"
@@ -325,7 +341,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-              disabled={!formData.agreeToTerms || loading}
+              disabled={!formData.agreeToTerms || !captchaVerified || loading}
             >
               {loading ? "Creating Account..." : "Create Account"}
             </Button>

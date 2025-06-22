@@ -50,6 +50,9 @@ export default function HomePage() {
             <Link href="#how-it-works" className="text-gray-300 hover:text-orange-400 transition-colors">
               How It Works
             </Link>
+            <Link href="/about" className="text-gray-300 hover:text-orange-400 transition-colors">
+              About Us
+            </Link>
             <Link href="/login" className="text-gray-300 hover:text-orange-400 transition-colors">
               Sign In
             </Link>
@@ -110,10 +113,10 @@ export default function HomePage() {
         <div className="container mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { number: "50K+", label: "Active Freelancers" },
-              { number: "25K+", label: "Happy Clients" },
-              { number: "100K+", label: "Projects Completed" },
-              { number: "4.9★", label: "Average Rating" },
+              { number: "500+", label: "Skilled Professionals" },
+              { number: "200+", label: "Satisfied Clients" },
+              { number: "1K+", label: "Projects Delivered" },
+              { number: "New", label: "Platform Launch" },
             ].map((stat, index) => (
               <div key={index} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold text-orange-400 mb-2">{stat.number}</div>
@@ -152,8 +155,8 @@ export default function HomePage() {
               },
               {
                 icon: Globe,
-                title: "Global Reach",
-                description: "Access talent from around the world or find local professionals in your area",
+                title: "Country Scale",
+                description: "Access talent from across the nation or find local professionals in your area",
                 color: "text-green-400",
               },
               {
@@ -238,7 +241,7 @@ export default function HomePage() {
         <div className="container mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Ready to Transform Your Career?</h2>
           <p className="text-xl text-gray-300 mb-10 max-w-2xl mx-auto">
-            Join thousands of successful freelancers and clients who trust ClickWork
+            Join hundreds of successful freelancers and clients who trust ClickWork
           </p>
           <Link href="/register">
             <Button
@@ -264,22 +267,37 @@ export default function HomePage() {
                 <span className="text-2xl font-bold text-white">ClickWork</span>
               </div>
               <p className="text-gray-400 leading-relaxed">
-                Connecting talent with opportunity across the globe. Your success is our mission.
+                Connecting talent with opportunity across the nation. Your success is our mission.
               </p>
             </div>
 
             {[
               {
                 title: "For Clients",
-                links: ["Find Freelancers", "Post a Project", "How It Works", "Success Stories"],
+                links: [
+                  { name: "Find Freelancers", href: "/register?type=client" },
+                  { name: "Post a Project", href: "/register?type=client" },
+                  { name: "How It Works", href: "#how-it-works" },
+                  { name: "About Us", href: "/about" },
+                ],
               },
               {
                 title: "For Freelancers",
-                links: ["Find Work", "Create Profile", "Resources", "Community"],
+                links: [
+                  { name: "Find Work", href: "/register?type=provider" },
+                  { name: "Create Profile", href: "/register?type=provider" },
+                  { name: "Resources", href: "/about" },
+                  { name: "Community", href: "/about" },
+                ],
               },
               {
                 title: "Support",
-                links: ["Help Center", "Contact Us", "Terms of Service", "Privacy Policy"],
+                links: [
+                  { name: "Help Center", href: "/about" },
+                  { name: "Contact Us", href: "/about" },
+                  { name: "Terms of Service", href: "/terms" },
+                  { name: "Privacy Policy", href: "/privacy" },
+                ],
               },
             ].map((section, index) => (
               <div key={index}>
@@ -287,8 +305,8 @@ export default function HomePage() {
                 <ul className="space-y-3">
                   {section.links.map((link, linkIndex) => (
                     <li key={linkIndex}>
-                      <Link href="#" className="text-gray-400 hover:text-orange-400 transition-colors">
-                        {link}
+                      <Link href={link.href} className="text-gray-400 hover:text-orange-400 transition-colors">
+                        {link.name}
                       </Link>
                     </li>
                   ))}

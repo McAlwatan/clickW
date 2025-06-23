@@ -239,7 +239,7 @@ export default function ProviderRequests() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Sidebar items={sidebarItems} userType="provider" />
 
-      <div className="lg:ml-64 p-8">
+      <div className="ml-64 p-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Service Requests</h1>

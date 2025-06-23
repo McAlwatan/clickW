@@ -255,7 +255,7 @@ export default function ClientMessages() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex">
       <Sidebar items={sidebarItems} userType="client" />
 
-      <div className="flex-1 lg:ml-64 flex">
+      <div className="flex-1 ml-64 flex">
         {/* Conversations List */}
         <div className="w-80 border-r border-gray-800 bg-gray-900/50">
           <div className="p-6 border-b border-gray-800">

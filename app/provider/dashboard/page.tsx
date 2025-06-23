@@ -124,7 +124,7 @@ export default function ProviderDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex">
       <Sidebar items={sidebarItems} userType="provider" />
 
-      <div className="flex-1 lg:ml-64 p-8">
+      <div className="flex-1 ml-64 p-8">
         <div className="max-w-6xl mx-auto">
           {/* Welcome Section */}
           <div className="mb-8">

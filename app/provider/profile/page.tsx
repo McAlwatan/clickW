@@ -77,7 +77,7 @@ export default function ProviderProfile() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
       <Sidebar items={sidebarItems} userType="provider" />
 
-      <div className="lg:ml-64 p-8">
+      <div className="ml-64 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 flex justify-between items-center">
             <div>

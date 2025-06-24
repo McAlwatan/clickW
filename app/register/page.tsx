@@ -106,7 +106,7 @@ export default function RegisterPage() {
 
       if (signInError) {
         console.error("Auto sign-in failed:", signInError)
-        setError("Account created but sign-in failed. Please try logging in manually.")
+        setError("Signed in successfully!. Please confirm your email to login.")
         return
       }
 

@@ -150,7 +150,7 @@ export default function ClientProfile() {
 
               <Card className="bg-gray-900/50 border-gray-800 shadow-dark">
                 <CardContent className="p-6 text-center">
-                  <div className="text-3xl font-bold text-green-400 mb-2">$0</div>
+                  <div className="text-3xl font-bold text-green-400 mb-2">Tsh 0</div>
                   <div className="text-gray-400">Total Spent</div>
                 </CardContent>
               </Card>

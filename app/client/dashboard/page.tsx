@@ -319,8 +319,7 @@ export default function ClientDashboard() {
 
                       <div className="md:text-right space-y-4">
                         <div className="flex items-center justify-end">
-                          <DollarSign className="h-6 w-6 text-orange-400" />
-                          <p className="testx-orange">Tsh </p>
+                          <p className="text-orange text-2xl">Tsh </p>
                           <span className="text-3xl font-bold text-white">{provider.hourly_rate}</span>
                           <span className="text-gray-400 ml-1">/hr</span>
                         </div>
